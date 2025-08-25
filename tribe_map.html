@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tribe Survival Interactive Map</title>
+  <script src="https://cdn.jsdelivr.net/npm/raphael@2.3.0/raphael.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; text-align: center; }
+    #map { width: 800px; height: 600px; margin: 20px auto; border: 1px solid #aaa; background: white; }
+    #info, #event { margin-top: 20px; padding: 10px; background: #fff; border: 1px solid #ccc; width: 400px; margin-left: auto; margin-right: auto; }
+    #legend { margin-top: 20px; padding: 10px; background: #fff; border: 1px solid #ccc; width: 400px; margin-left: auto; margin-right: auto; text-align: left; }
+    #legend h3 { text-align: center; margin-top: 0; }
+    button { margin-top: 10px; padding: 8px 15px; font-size: 14px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Tribe Survival: Interactive Region Map</h1>
+  <div id="map"></div>
+  <div id="info">Click a region to see its resources.</div>
+  
+  <button id="eventBtn">Draw Random Event</button>
+  <div id="event">No event drawn yet.</div>
+
+  <div id="legend">
+    <h3>Legend</h3>
+    <p>🥖 Food</p>
+    <p>🛠️ Tool</p>
+    <p>🏠 Shelter</p>
+    <p>👥 People</p>
+  </div>
+
+  <script>
+    const resourceIcons = {
+      "Food": "🥖",
+      "Tool": "🛠️",
+      "Shelter": "🏠",
+      "People": "👥"
+    };
+
+    const regions = {
+      "Grasslands": { x: 150, y: 250, resources: "Food +1", connects: ["River Valley", "Forest"], color: "#a8e6cf" },
+      "River Valley": { x: 300, y: 150, resources: "Food +1, Tool +1", connects: ["Grasslands", "Highlands", "Coastal Zone"], color: "#dcedc1" },
+      "Highlands": { x: 500, y: 150, resources: "Tool +1, People -1", connects: ["River Valley", "Coastal Zone"], color: "#ffd3b6" },
+      "Coastal Zone": { x: 650, y: 250, resources: "Food +1, Tool +1", connects: ["River Valley", "Highlands", "Desert"], color: "#ffaaa5" },
+      "Desert": { x: 500, y: 400, resources: "People -1, Food -1", connects: ["Coastal Zone", "Forest"], color: "#ff8b94" },
+      "Forest": { x: 300, y: 400, resources: "Food +1, Shelter +1", connects: ["Grasslands", "Desert"], color: "#a0e7e5" }
+    };
+
+    const events = [
+      { card: 1, title: "Mega-Drought", effect: "Lose 2 🥖 if you stay, 1 🥖 if you migrate." },
+      { card: 2, title: "Flooded River Valley", effect: "Lose 1 🥖, gain 1 🛠️ if you relocate." },
+      { card: 3, title: "Wildfire", effect: "Lose 1 👥 if you stay; lose 1 🥖 if you migrate." },
+      { card: 4, title: "Harsh Winter", effect: "Lose 1 🥖 unless you migrate to Coastal Zone." },
+      { card: 5, title: "Earthquake", effect: "Lose 1 🛠️ if you stay; no effect if migrate." },
+      { card: 6, title: "Locust Plague", effect: "Lose 2 🥖 if you stay; 1 🥖 if migrate." },
+      { card: 7, title: "Bronze Tool Discovery", effect: "Gain 1 🛠️ if tribe migrates to Highlands." },
+      { card: 8, title: "Irrigation Innovation", effect: "Gain 2 🥖 if you stay in River Valley." },
+      { card: 9, title: "Ritual Strengthens Tribe Bonds", effect: "Gain 1 👥 for all tribes in the region." },
+      { card: 10, title: "New Fishing Techniques", effect: "Gain 2 🥖 if in Coastal Zone." },
+      { card: 11, title: "Domesticated Animals", effect: "Gain 1 🥖 if you migrate to Grasslands." },
+      { card: 12, title: "Pottery & Storage", effect: "Gain 1 🛠️ if you stay in River Valley." },
+      { card: 13, title: "Trade Route Opens", effect: "Gain 2 🛠️ if you move along a path." },
+      { card: 14, title: "Resource Scarcity", effect: "Lose 1 🛠️ if you stay in Highlands." },
+      { card: 15, title: "Abundant Game", effect: "Gain 2 🥖 if you stay in Forest." },
+      { card: 16, title: "River Navigation Discovery", effect: "Move an extra region this round free." },
+      { card: 17, title: "Market Collapse", effect: "Lose 1 🛠️ if you stay in Coastal Zone." },
+      { card: 18, title: "Rare Metal Found", effect: "Gain 1 🛠️ if tribe migrates to Highlands." },
+      { card: 19, title: "Rival Tribe Attacks", effect: "Lose 1 🥖 and 1 👥 if you stay; none if migrate." },
+      { card: 20, title: "Tribute Demanded", effect: "Lose 1 🛠️ to pass through a region." },
+      { card: 21, title: "Peaceful Alliance", effect: "Gain 1 🥖 and 1 👥 if you stay." },
+      { card: 22, title: "Internal Leadership Struggle", effect: "Lose 1 👥 due to instability." },
+      { card: 23, title: "Border Dispute", effect: "Lose 1 🥖 for extra movement." },
+      { card: 24, title: "Fortification Construction", effect: "Lose no tokens if attacked this round." },
+      { card: 25, title: "Overhunting", effect: "Lose 1 🥖 in Forest next round." },
+      { card: 26, title: "Salinization of Fields", effect: "Lose 1 🥖 in River Valley next round." },
+      { card: 27, title: "Disease Outbreak", effect: "Lose 1 👥 in any region." },
+      { card: 28, title: "Storm Destroys Coastal Village", effect: "Lose 1 🥖 and 1 🛠️ in Coastal Zone." },
+      { card: 29, title: "Mountain Landslide", effect: "Cannot migrate; lose 1 👥." },
+      { card: 30, title: "Forest Fire After Drought", effect: "Lose 2 🥖 in Forest; lose 1 if migrate." },
+      { card: 31, title: "Unexpected Fertile Season", effect: "Gain 2 🥖 if you stay in Grasslands." },
+      { card: 32, title: "Fresh Water Spring", effect: "Gain 1 👥 if tribe migrates to Desert/Grasslands." }
+    ];
+
+    const paper = Raphael("map", 800, 600);
+
+    // Draw connections first
+    for (const [name, data] of Object.entries(regions)) {
+      data.connects.forEach(conn => {
+        const target = regions[conn];
+        paper.path(`M${data.x},${data.y}L${target.x},${target.y}`).attr({ stroke: "#888", "stroke-width": 2 });
+      });
+    }
+
+    // Draw regions
+    for (const [name, data] of Object.entries(regions)) {
+      const circle = paper.circle(data.x, data.y, 40).attr({ fill: data.color, stroke: "#333", "stroke-width": 2 });
+      const label = paper.text(data.x, data.y, name).attr({ "font-size": 12 });
+
+      circle.node.style.cursor = "pointer";
+      label.node.style.cursor = "pointer";
+
+      const showInfo = () => {
+        let resWithIcons = data.resources.replace(/Food/g, resourceIcons.Food + " Food")
+                                         .replace(/Tool/g, resourceIcons.Tool + " Tool")
+                                         .replace(/Shelter/g, resourceIcons.Shelter + " Shelter")
+                                         .replace(/People/g, resourceIcons.People + " People");
+        $("#info").html(`<h3>${name}</h3><p><b>Resources:</b> ${resWithIcons}</p><p><b>Connected Regions:</b> ${data.connects.join(", ")}</p>`);
+      };
+
+      circle.click(showInfo);
+      label.click(showInfo);
+    }
+
+    // Event button functionality
+    $("#eventBtn").click(function() {
+      const randomEvent = events[Math.floor(Math.random() * events.length)];
+      $("#event").html(`<h3>Event Card ${randomEvent.card}: ${randomEvent.title}</h3><p>${randomEvent.effect}</p>`);
+    });
+  </script>
+</body>
+</html>
